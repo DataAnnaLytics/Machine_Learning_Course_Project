@@ -1,0 +1,159 @@
+---
+title: "Machine Learning Course Project"
+author: "Anna Listl"
+date: "12.8.2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Wearable Accelerometer Data
+
+
+## Intro
+Task: see course project instructions <https://www.coursera.org/learn/practical-machine-learning/supplement/PvInj/course-project-instructions-read-first>
+
+## Summary
+
+My laptop is way to slow for Random Forests, so I sticked to SVM which was also quite good.
+
+## Data
+
+### Getting familiar
+
+First I had a look at the data (links were provided in the instructions) and tried to find some info or documentation to find out more about the columns (I was not very successfull) <http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf>.
+
+
+```{r, include=FALSE}
+#get some packages
+library(gbm)
+library(forecast)
+library(e1071)
+library(caret)
+
+#load data
+training_raw=read.csv('pml-training.csv')
+testing_raw=read.csv('pml-testing.csv')
+
+#have a first look - not printed
+summary(training_raw)
+str(training_raw)
+View(training_raw)
+View(testing_raw)
+```
+
+### Preprocessing
+
+I can see that there are a lot of NAs, I'm going to exclude those columns as they do not really help. I'll also exclude some of the first columns like the 'new_window' column. I guess I'll keep the name though - maybe the participants have a very different stature/fitness level/size so it would make sense that e.g. the acceleration is very variable, but that doesn't necessarily mean that the slower participant does it wrong.   
+
+```{r}
+#kick out NAs: find NA columns in test set:
+not_NA_columns<-colnames(testing_raw[colSums(is.na(testing_raw))==0])
+#also delete the first seven columns (apart from the user name)
+relevant_colnames<-not_NA_columns[c(-1, -3, -4, -5, -6, -7)]
+#apply to test set
+testing<-testing_raw[relevant_colnames]
+#in the training set there is the additional column 'classe' but no column 'Problem ID'
+relevant_colnames[54]<-c('classe')
+training_all<-training_raw[relevant_colnames]
+
+```
+
+### Validation set
+
+As the Classe info is not available in the test set, I need an additional validation set so that I can evaluate my models
+
+```{r}
+#split training data into smaller training data and validation data
+inTrain<-createDataPartition(y=training_all$classe, p=0.8, list=FALSE)
+training<-training_all[inTrain,]
+validating<-training_all[-inTrain,]
+```
+
+
+## Model Selection and validation
+
+We will check rf, rpart, svm, gbm and lda.
+
+### Random forest
+
+I cancelled that after 30min.
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('notime.png')
+```
+
+### Trees
+
+```{r}
+#model
+mod_rpart<-train(classe~.,training, method='rpart')
+#predict
+pred_rpart<-predict(mod_rpart, validating)
+#check accuracy via confusion$class matrix
+confusionMatrix(validating$classe, pred_rpart)$overall
+```
+
+50%, that's lousy. 
+
+### SVM
+```{r}
+#model
+mod_svm<-svm(classe~.,data=training)
+```
+```{r}
+#predict
+pred_svm<-predict(mod_svm, validating)
+#check accuracy 
+nrow(validating[validating$classe==pred_svm,])/nrow(validating)
+```
+
+94%, much better! 
+
+A little more detailed: 
+```{r}
+#Confusion matrix
+table(pred_svm, validating$classe)
+```
+
+
+### gbm
+
+Also quite slow...let's skip that. 
+
+### linear discriminant analysis
+
+```{r}
+#model
+mod_lda<-train(classe~.,training, method='lda')
+#predict
+pred_lda<-predict(mod_lda, validating)
+#check accuracy via confusion$class matrix
+confusionMatrix(validating$classe, pred_lda)$overall
+```
+
+73% - nah.
+
+I'll go with SVM! (Although I'd prefer Random Forests. I could do some more checks here like reducing the amount of data, but I don't think I would learn very much doing that)
+ 
+## Test set and quiz results
+
+Let's see what I'll tick in the quiz...
+
+```{r}
+predict(mod_svm, testing)
+```
+How exiting...94% accuracy is not nearly as much as others achieved with random forests...
+
+Yeeah 100%! 
+
+Oh, I haven't used the five figures I was allowed to show you...Here is a pie chart: 
+
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('pie.png')
+
+```
+
+
+Have a nice day!
